@@ -86,7 +86,7 @@ public class ResourceServiceImpl extends SuperCacheServiceImpl<ResourceMapper, R
         // 若list里面的值过多，而资源又均没有缓存（或者缓存击穿），则这里的效率并不高
 
         List<Long> list = (List<Long>) cacheObject.getValue();
-        List<Resource> resourceList = list.stream().map(this::getByIdCache).collect(Collectors.toList());
+        List<Resource> resourceList = list.stream().map(this::getByIdCache).filter(Objects::nonNull).collect(Collectors.toList());
 
         if (resource.getMenuId() == null) {
             return resourceList;

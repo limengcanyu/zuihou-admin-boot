@@ -8,10 +8,18 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.github.zuihou.authority.dao.auth.UserMapper;
 import com.github.zuihou.authority.dto.auth.ResourceQueryDTO;
 import com.github.zuihou.authority.dto.auth.UserUpdatePasswordDTO;
-import com.github.zuihou.authority.entity.auth.*;
+import com.github.zuihou.authority.entity.auth.Resource;
+import com.github.zuihou.authority.entity.auth.Role;
+import com.github.zuihou.authority.entity.auth.RoleOrg;
+import com.github.zuihou.authority.entity.auth.User;
+import com.github.zuihou.authority.entity.auth.UserRole;
 import com.github.zuihou.authority.entity.core.Org;
 import com.github.zuihou.authority.entity.core.Station;
-import com.github.zuihou.authority.service.auth.*;
+import com.github.zuihou.authority.service.auth.ResourceService;
+import com.github.zuihou.authority.service.auth.RoleOrgService;
+import com.github.zuihou.authority.service.auth.RoleService;
+import com.github.zuihou.authority.service.auth.UserRoleService;
+import com.github.zuihou.authority.service.auth.UserService;
 import com.github.zuihou.authority.service.core.OrgService;
 import com.github.zuihou.authority.service.core.StationService;
 import com.github.zuihou.base.service.SuperCacheServiceImpl;
@@ -40,11 +48,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-//import com.github.zuihou.authority.dao.defaults.TenantMapper;
-//import com.github.zuihou.authority.entity.defaults.Tenant;
 
 /**
  * <p>
@@ -118,11 +133,11 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
 
         List<Role> list = roleService.findRoleByUserId(userId);
 
-        // 过滤最小角色
-        Optional<Role> min = list.stream().min(Comparator.comparingInt((item) -> item.getDsType().getVal()));
+        // 找到 dsType 最大的角色， dsType越大，角色拥有的权限最大
+        Optional<Role> max = list.stream().max(Comparator.comparingInt((item) -> item.getDsType().getVal()));
 
-        if (min.isPresent()) {
-            Role role = min.get();
+        if (max.isPresent()) {
+            Role role = max.get();
             dsType = role.getDsType();
             map.put("dsType", dsType.getVal());
             if (DataScopeType.CUSTOMIZE.eq(dsType)) {
@@ -174,15 +189,6 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
     @Override
     @Transactional(rollbackFor = Exception.class)
     public User saveUser(User user) {
-//        Tenant tenant = tenantMapper.getByCode(BaseContextHandler.getTenant());
-//        BizAssert.notNull(tenant, "租户不存在，请联系管理员");
-        //TODO zuihou
-        // 永不过期
-//        if (tenant.getPasswordExpire() == null || tenant.getPasswordExpire() <= 0) {
-//            user.setPasswordExpireTime(null);
-//        } else {
-//            user.setPasswordExpireTime(LocalDateTime.now().plusDays(tenant.getPasswordExpire()));
-//        }
         user.setPassword(SecureUtil.md5(user.getPassword()));
         user.setPasswordErrorNum(0);
         super.save(user);
@@ -195,22 +201,12 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
         if (ids.isEmpty()) {
             return true;
         }
-        //TODO zuihou
-//        Tenant tenant = tenantMapper.getByCode(BaseContextHandler.getTenant());
-//        BizAssert.notNull(tenant, "租户不存在，请联系管理员");
-//
-//        LocalDateTime passwordExpireTime = null;
-//        if (tenant.getPasswordExpire() != null && tenant.getPasswordExpire() > 0) {
-//            passwordExpireTime = LocalDateTime.now().plusDays(tenant.getPasswordExpire());
-//        }
-
         String defPassword = BizConstant.DEF_PASSWORD_MD5;
         super.update(Wraps.<User>lbU()
-                        .set(User::getPassword, defPassword)
-                        .set(User::getPasswordErrorNum, 0L)
-                        .set(User::getPasswordErrorLastTime, null)
-//                .set(User::getPasswordExpireTime, passwordExpireTime)
-                        .in(User::getId, ids)
+                .set(User::getPassword, defPassword)
+                .set(User::getPasswordErrorNum, 0L)
+                .set(User::getPasswordErrorLastTime, null)
+                .in(User::getId, ids)
         );
         String[] keys = ids.stream().map((id) -> key(id)).toArray(String[]::new);
         cacheChannel.evict(getRegion(), keys);
@@ -221,15 +217,6 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
     @Override
     @Transactional(rollbackFor = Exception.class)
     public User updateUser(User user) {
-//        Tenant tenant = tenantMapper.getByCode(BaseContextHandler.getTenant());
-//        BizAssert.notNull(tenant, "租户不存在，请联系管理员");
-//        // 永不过期
-//        if (tenant.getPasswordExpire() == null || tenant.getPasswordExpire() <= 0) {
-//            user.setPasswordExpireTime(null);
-//        } else {
-//            user.setPasswordExpireTime(LocalDateTime.now().plusDays(tenant.getPasswordExpire()));
-//        }
-
         if (StrUtil.isNotEmpty(user.getPassword())) {
             user.setPassword(SecureUtil.md5(user.getPassword()));
         }

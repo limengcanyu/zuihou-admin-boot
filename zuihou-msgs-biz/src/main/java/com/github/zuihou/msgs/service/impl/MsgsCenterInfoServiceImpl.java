@@ -71,7 +71,7 @@ public class MsgsCenterInfoServiceImpl extends SuperServiceImpl<MsgsCenterInfoMa
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean delete(List<Long> ids, Long userId) {
-        msgsCenterInfoReceiveService.remove(Wraps.<MsgsCenterInfoReceive>lbQ()
+        boolean bool = msgsCenterInfoReceiveService.remove(Wraps.<MsgsCenterInfoReceive>lbQ()
                 .eq(MsgsCenterInfoReceive::getUserId, userId)
                 .in(MsgsCenterInfoReceive::getMsgsCenterId, ids));
 
@@ -83,7 +83,7 @@ public class MsgsCenterInfoServiceImpl extends SuperServiceImpl<MsgsCenterInfoMa
                 super.remove(Wraps.<MsgsCenterInfo>lbQ().eq(MsgsCenterInfo::getId, msgCenterId));
             }
         }
-        return true;
+        return bool;
     }
 
     /**
@@ -107,7 +107,7 @@ public class MsgsCenterInfoServiceImpl extends SuperServiceImpl<MsgsCenterInfoMa
         //其他类型的修改状态
         if (!list.isEmpty()) {
             List<Long> idList = list.stream().mapToLong(MsgsCenterInfo::getId).boxed().collect(Collectors.toList());
-            msgsCenterInfoReceiveService.update(Wraps.<MsgsCenterInfoReceive>lbU()
+            return msgsCenterInfoReceiveService.update(Wraps.<MsgsCenterInfoReceive>lbU()
                     .eq(MsgsCenterInfoReceive::getUserId, userId)
                     .in(MsgsCenterInfoReceive::getMsgsCenterId, idList)
                     .set(MsgsCenterInfoReceive::getIsRead, true)

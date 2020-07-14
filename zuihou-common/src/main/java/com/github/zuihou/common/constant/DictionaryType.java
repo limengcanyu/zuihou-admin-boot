@@ -6,7 +6,7 @@ package com.github.zuihou.common.constant;
  * @author zuihou
  * @date 2019/07/26
  */
-public class DictionaryCode {
+public class DictionaryType {
     /**
      * 职位状态
      */
@@ -19,11 +19,15 @@ public class DictionaryCode {
      * 学历
      */
     public static final String EDUCATION = "EDUCATION";
+    /**
+     * 行政区级
+     */
+    public static final String AREA_LEVEL = "AREA_LEVEL";
     public static final String[] ALL = new String[]{
-            DictionaryCode.EDUCATION, DictionaryCode.NATION, DictionaryCode.POSITION_STATUS
+            EDUCATION, NATION, POSITION_STATUS, AREA_LEVEL
     };
 
-    private DictionaryCode() {
+    private DictionaryType() {
     }
 
 }
