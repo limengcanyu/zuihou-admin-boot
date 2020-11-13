@@ -2,7 +2,6 @@ package com.github.zuihou.authority.service.auth.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.convert.Convert;
-import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.github.zuihou.authority.dao.auth.UserMapper;
@@ -23,13 +22,11 @@ import com.github.zuihou.authority.service.auth.UserService;
 import com.github.zuihou.authority.service.core.OrgService;
 import com.github.zuihou.authority.service.core.StationService;
 import com.github.zuihou.base.service.SuperCacheServiceImpl;
-import com.github.zuihou.common.constant.BizConstant;
 import com.github.zuihou.common.constant.CacheKey;
 import com.github.zuihou.database.mybatis.auth.DataScope;
 import com.github.zuihou.database.mybatis.auth.DataScopeType;
 import com.github.zuihou.database.mybatis.conditions.Wraps;
 import com.github.zuihou.database.mybatis.conditions.query.LbqWrapper;
-import com.github.zuihou.injection.annonation.InjectionResult;
 import com.github.zuihou.model.RemoteData;
 import com.github.zuihou.security.feign.UserQuery;
 import com.github.zuihou.security.model.SysOrg;
@@ -53,12 +50,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static com.github.zuihou.common.constant.CacheKey.USER_ACCOUNT;
 
 
 /**
@@ -94,7 +95,6 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
     }
 
     @Override
-    @InjectionResult
     public IPage<User> findPage(IPage<User> page, LbqWrapper<User> wrapper) {
         return baseMapper.findPage(page, wrapper, new DataScope());
     }
@@ -111,13 +111,14 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
         BizAssert.equals(user.getPassword(), oldPassword, "旧密码错误");
 
         User build = User.builder().password(SecureUtil.md5(data.getPassword())).id(data.getId()).build();
-        updateById(build);
-        return true;
+        return updateById(build);
     }
 
     @Override
     public User getByAccount(String account) {
-        return super.getOne(Wraps.<User>lbQ().eq(User::getAccount, account));
+        String key = buildTenantKey(account);
+        Function<String, Object> loader = (k) -> getObj(Wraps.<User>lbQ().select(User::getId).eq(User::getAccount, account), Convert::toLong);
+        return getByKey(USER_ACCOUNT, key, loader);
     }
 
     @Override
@@ -197,19 +198,16 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean reset(List<Long> ids) {
-        if (ids.isEmpty()) {
-            return true;
-        }
-        String defPassword = BizConstant.DEF_PASSWORD_MD5;
+    public boolean reset(UserUpdatePasswordDTO data) {
+        BizAssert.equals(data.getConfirmPassword(), data.getPassword(), "2次输入的密码不一致");
+        String defPassword = SecureUtil.md5(data.getPassword());
         super.update(Wraps.<User>lbU()
                 .set(User::getPassword, defPassword)
                 .set(User::getPasswordErrorNum, 0L)
                 .set(User::getPasswordErrorLastTime, null)
-                .in(User::getId, ids)
+                .in(User::getId, data.getId())
         );
-        String[] keys = ids.stream().map((id) -> key(id)).toArray(String[]::new);
-        cacheChannel.evict(getRegion(), keys);
+        cacheChannel.evict(getRegion(), key(data.getId()));
 
         return true;
     }
@@ -217,9 +215,8 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
     @Override
     @Transactional(rollbackFor = Exception.class)
     public User updateUser(User user) {
-        if (StrUtil.isNotEmpty(user.getPassword())) {
-            user.setPassword(SecureUtil.md5(user.getPassword()));
-        }
+        // 不允许修改用户信息时修改密码，请单独调用修改密码接口
+        user.setPassword(null);
         updateById(user);
         return user;
     }
@@ -247,7 +244,16 @@ public class UserServiceImpl extends SuperCacheServiceImpl<UserMapper, User> imp
         return typeMap;
     }
 
-    private List<User> findUser(Set<Serializable> ids) {
+
+    @Override
+    public List<User> findUserById(List<Long> ids) {
+        Set<Serializable> set = new HashSet<>();
+        ids.forEach(set::add);
+        return findUser(set);
+    }
+
+    @Override
+    public List<User> findUser(Set<Serializable> ids) {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }

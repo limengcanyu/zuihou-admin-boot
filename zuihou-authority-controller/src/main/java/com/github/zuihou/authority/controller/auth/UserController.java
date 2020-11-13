@@ -28,6 +28,7 @@ import com.github.zuihou.common.constant.BizConstant;
 import com.github.zuihou.common.constant.DictionaryType;
 import com.github.zuihou.database.mybatis.conditions.query.LbqWrapper;
 import com.github.zuihou.database.mybatis.conditions.query.QueryWrap;
+import com.github.zuihou.injection.core.InjectionCore;
 import com.github.zuihou.log.annotation.SysLog;
 import com.github.zuihou.model.RemoteData;
 import com.github.zuihou.security.annotation.PreAuth;
@@ -40,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -78,6 +80,8 @@ public class UserController extends SuperCacheController<UserService, Long, User
     private ExcelUserVerifyHandlerImpl excelUserVerifyHandler;
     @Autowired
     private DictionaryItemService dictionaryItemService;
+    @Autowired
+    private InjectionCore injectionCore;
 
     /**
      * 重写保存逻辑
@@ -88,6 +92,7 @@ public class UserController extends SuperCacheController<UserService, Long, User
     @Override
     public R<User> handlerSave(UserSaveDTO data) {
         User user = BeanUtil.toBean(data, User.class);
+        user.setReadonly(false);
         baseService.saveUser(user);
         return success(user);
     }
@@ -164,14 +169,14 @@ public class UserController extends SuperCacheController<UserService, Long, User
     /**
      * 重置密码
      *
-     * @param ids 用户ID
+     * @param data
      * @return
      */
     @ApiOperation(value = "重置密码", notes = "重置密码")
-    @GetMapping("/reset")
-    @SysLog("'重置密码:' + #ids")
-    public R<Boolean> resetTx(@RequestParam("ids[]") List<Long> ids) {
-        baseService.reset(ids);
+    @PostMapping("/reset")
+    @SysLog("'重置密码:' + #data.id")
+    public R<Boolean> reset(@RequestBody @Validated(SuperEntity.Update.class) UserUpdatePasswordDTO data) {
+        baseService.reset(data);
         return success();
     }
 
@@ -191,12 +196,13 @@ public class UserController extends SuperCacheController<UserService, Long, User
     }
 
 
-
-    @ApiOperation(value = "查询所有用户", notes = "查询所有用户")
-    @GetMapping("/find")
+    @ApiOperation(value = "查询所有用户实体", notes = "查询所有用户实体")
+    @GetMapping("/findAll")
     @SysLog("查询所有用户")
-    public R<List<Long>> findAllUserId() {
-        return success(baseService.findAllUserId());
+    public R<List<User>> findAll() {
+        List<User> res = baseService.list();
+        res.forEach(obj -> obj.setPassword(null));
+        return success(res);
     }
 
     @Override
@@ -270,6 +276,7 @@ public class UserController extends SuperCacheController<UserService, Long, User
         }
         wrapper.like(User::getName, userPage.getName())
                 .like(User::getAccount, userPage.getAccount())
+                .eq(User::getReadonly, false)
                 .like(User::getEmail, userPage.getEmail())
                 .like(User::getMobile, userPage.getMobile())
                 .eq(User::getStation, userPage.getStation())
@@ -279,5 +286,7 @@ public class UserController extends SuperCacheController<UserService, Long, User
                 .eq(User::getSex, userPage.getSex())
                 .eq(User::getStatus, userPage.getStatus());
         baseService.findPage(page, wrapper);
+        // 手动注入
+        injectionCore.injection(page);
     }
 }

@@ -1,26 +1,31 @@
 package com.github.zuihou.tenant.controller;
 
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.github.zuihou.authority.dto.auth.UserUpdatePasswordDTO;
 import com.github.zuihou.authority.entity.auth.User;
 import com.github.zuihou.authority.service.auth.UserService;
 import com.github.zuihou.base.R;
 import com.github.zuihou.base.controller.SuperController;
+import com.github.zuihou.base.entity.SuperEntity;
 import com.github.zuihou.base.request.PageParams;
 import com.github.zuihou.common.constant.BizConstant;
 import com.github.zuihou.context.BaseContextHandler;
 import com.github.zuihou.database.mybatis.conditions.Wraps;
+import com.github.zuihou.database.mybatis.conditions.query.LbqWrapper;
 import com.github.zuihou.database.mybatis.conditions.query.QueryWrap;
 import com.github.zuihou.log.annotation.SysLog;
 import com.github.zuihou.tenant.dto.GlobalUserPageDTO;
 import com.github.zuihou.tenant.dto.GlobalUserSaveDTO;
 import com.github.zuihou.tenant.dto.GlobalUserUpdateDTO;
 import com.github.zuihou.tenant.entity.GlobalUser;
+import com.github.zuihou.tenant.entity.Tenant;
+import com.github.zuihou.tenant.enumeration.TenantStatusEnum;
 import com.github.zuihou.tenant.service.GlobalUserService;
+import com.github.zuihou.tenant.service.TenantService;
 import com.github.zuihou.utils.BeanPlusUtil;
-import com.github.zuihou.utils.DateUtils;
+import com.github.zuihou.utils.BizAssert;
 import com.github.zuihou.utils.StrHelper;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -31,12 +36,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * <p>
@@ -57,12 +63,18 @@ public class GlobalUserController extends SuperController<GlobalUserService, Lon
 
     @Autowired
     private UserService userService;
+    @Autowired
+    private TenantService tenantService;
 
     @Override
     public R<GlobalUser> handlerSave(GlobalUserSaveDTO model) {
         if (StrUtil.isEmpty(model.getTenantCode()) || BizConstant.SUPER_TENANT.equals(model.getTenantCode())) {
             return success(baseService.save(model));
         } else {
+            Tenant tenant = tenantService.getByCode(model.getTenantCode());
+            BizAssert.notNull(tenant, "租户不能为空");
+            BizAssert.isTrue(TenantStatusEnum.NORMAL.eq(tenant.getStatus()), StrUtil.format("租户[{}]不可用", tenant.getName()));
+
             BaseContextHandler.setTenant(model.getTenantCode());
             User user = BeanPlusUtil.toBean(model, User.class);
             user.setName(StrHelper.getOrDef(model.getName(), model.getAccount()));
@@ -102,29 +114,6 @@ public class GlobalUserController extends SuperController<GlobalUserService, Lon
         }
     }
 
-    private void handlerUserWrapper(QueryWrap<User> wrapper, PageParams<GlobalUserPageDTO> params) {
-        if (CollUtil.isNotEmpty(params.getMap())) {
-            Map<String, String> map = params.getMap();
-            //拼装区间
-            for (Map.Entry<String, String> field : map.entrySet()) {
-                String key = field.getKey();
-                String value = field.getValue();
-                if (StrUtil.isEmpty(value)) {
-                    continue;
-                }
-                if (key.endsWith("_st")) {
-                    String beanField = StrUtil.subBefore(key, "_st", true);
-                    wrapper.ge(getDbField(beanField, getEntityClass()), DateUtils.getStartTime(value));
-                }
-                if (key.endsWith("_ed")) {
-                    String beanField = StrUtil.subBefore(key, "_ed", true);
-                    wrapper.le(getDbField(beanField, getEntityClass()), DateUtils.getEndTime(value));
-                }
-            }
-        }
-    }
-
-
     @Override
     public void query(PageParams<GlobalUserPageDTO> params, IPage<GlobalUser> page, Long defSize) {
         GlobalUserPageDTO model = params.getModel();
@@ -139,11 +128,10 @@ public class GlobalUserController extends SuperController<GlobalUserService, Lon
         BaseContextHandler.setTenant(model.getTenantCode());
 
         IPage<User> userPage = params.buildPage();
-        QueryWrap<User> wrapper = Wraps.q();
-        handlerUserWrapper(wrapper, params);
-        wrapper.lambda()
-                .like(User::getAccount, model.getAccount())
-                .like(User::getName, model.getName());
+        LbqWrapper<User> wrapper = Wraps.lbq(null, params.getMap(), User.class);
+        wrapper.like(User::getAccount, model.getAccount())
+                .like(User::getName, model.getName())
+                .orderByDesc(User::getCreateTime);
 
         userService.page(userPage, wrapper);
 
@@ -171,4 +159,21 @@ public class GlobalUserController extends SuperController<GlobalUserService, Lon
         }
     }
 
+
+    /**
+     * 修改密码
+     *
+     * @param model 修改实体
+     * @return
+     */
+    @ApiOperation(value = "修改密码", notes = "修改密码")
+    @PutMapping("/reset")
+    public R<Boolean> updatePassword(@RequestBody @Validated(SuperEntity.Update.class) UserUpdatePasswordDTO model) {
+        if (StrUtil.isEmpty(model.getTenantCode()) || BizConstant.SUPER_TENANT.equals(model.getTenantCode())) {
+            return success(baseService.updatePassword(model));
+        } else {
+            BaseContextHandler.setTenant(model.getTenantCode());
+            return success(userService.reset(model));
+        }
+    }
 }

@@ -20,15 +20,21 @@ zuihou:
     database: zuihou_defaults
     username: root
     password: root
-    url: jdbc:mysql://${zuihou.mysql.ip}:${zuihou.mysql.port}/${zuihou.mysql.database}?serverTimezone=CTT&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true
+    url: jdbc:mysql://${zuihou.mysql.ip}:${zuihou.mysql.port}/${zuihou.mysql.database}?serverTimezone=CTT&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true&nullCatalogMeansCurrent=true
   database:
-    tenantDatabasePrefix: zuihou_base
+    tenantDatabasePrefix: zuihou_boot
     multiTenantType: SCHEMA
     isNotWrite: false
     isBlockAttack: false  # 是否启用 攻击 SQL 阻断解析器
-    worker-id: 0
-    data-center-id: 0
     isSeata: false
+    id-type: CACHE
+    cache-id:
+      time-bits: 31
+      worker-bits: 22
+      seq-bits: 10
+      epochStr: '2020-09-15'
+      boost-power: 3
+      padding-factor: 50
   injection:
     # 是否启用 远程数据 手动注入
     enabled: true
@@ -69,12 +75,15 @@ zuihou:
     license: Powered By zuihou
     licenseUrl: https://github.com/zuihou
     termsOfServiceUrl: https://github.com/zuihou
-    version: 2.2
-    apiKeys:
-      - name: 令牌
-        keyname: token
-        passAs: header
+    version: @project.version@
     global-operation-parameters:
+      - name: token
+        description: 用户身份token
+        modelRef: String
+        parameterType: header
+        required: true
+        # 默认值只是方便本地开发时，少填参数，生产环境请禁用swagger或者禁用默认参数
+        defaultValue: "Bearer test"
       - name: Authorization
         description: 客户端信息
         modelRef: String
@@ -105,7 +114,7 @@ zuihou:
         base-package: com.github.zuihou.authority.controller.core
       tenant:
         title: 租户模块
-        base-package: com.github.zuihou.authority.controller.defaults
+        base-package: com.github.zuihou.tenant.controller
       sms:
         title: 短信模块
         base-package: com.github.zuihou.sms.controller
@@ -124,7 +133,7 @@ authentication:
   refreshExpire: 86400        # 刷新token有效期为24小时
 
 server:
-  port: 8764
+  port: 8760
   undertow:
     io-threads: 8 # 设置IO线程数, 它主要执行非阻塞的任务,它们会负责多个连接, 默认设置每个CPU核心一个线程
     worker-threads: 120  # 阻塞任务线程池, 当执行类似servlet请求阻塞操作, undertow会从这个线程池中取得线程,它的值设置取决于系统的负载
@@ -173,35 +182,7 @@ spring:
     type: GENERIC
   datasource:
     # 从这里开始(dynamic)，中间的这段配置用于 zuihou.database.multiTenantType == DATASOURCE 时
-    dynamic:
-      enabled: false  # 这里一定要写成false， 是否开启根据 zuihou.database.multiTenantType 来决定
-      p6spy: true
-      seata: ${zuihou.database.isSeata:false}
-      druid:
-        initialSize: 10
-        minIdle: 10
-        maxActive: 500
-        max-wait: 60000
-        pool-prepared-statements: true
-        max-pool-prepared-statement-per-connection-size: 20
-        validation-query: SELECT 'x'
-        test-on-borrow: false
-        test-on-return: false
-        test-while-idle: true
-        time-between-eviction-runs-millis: 60000  #配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
-        min-evictable-idle-time-millis: 300000    #配置一个连接在池中最小生存的时间，单位是毫秒
-        filters: stat,wall
-        wall:
-          comment-allow: true
-          multiStatementAllow: true
-          noneBaseStatementAllow: true
-      datasource:
-        master:       # 默认的数据源
-          username: ${zuihou.mysql.username}
-          password: ${zuihou.mysql.password}
-          driver-class-name: ${zuihou.mysql.driverClassName}
-          url: jdbc:mysql://${zuihou.mysql.ip}:${zuihou.mysql.port}/${zuihou.mysql.database}?serverTimezone=CTT&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true
-          db-type: mysql
+    # 联系作者 购买太懂
     # 从这里结束(dynamic)，中间的这段配置用于 zuihou.database.multiTenantType == DATASOURCE 时
     druid:
       enable: true
@@ -209,7 +190,7 @@ spring:
       username: ${zuihou.mysql.username}
       password: ${zuihou.mysql.password}
       driver-class-name: ${zuihou.mysql.driverClassName}
-      url: jdbc:mysql://${zuihou.mysql.ip}:${zuihou.mysql.port}/${zuihou.mysql.database}?serverTimezone=CTT&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true
+      url: jdbc:mysql://${zuihou.mysql.ip}:${zuihou.mysql.port}/${zuihou.mysql.database}?serverTimezone=CTT&characterEncoding=utf8&useUnicode=true&useSSL=false&autoReconnect=true&zeroDateTimeBehavior=convertToNull&allowMultiQueries=true&nullCatalogMeansCurrent=true
       db-type: mysql
       initialSize: 10
       minIdle: 10

@@ -87,7 +87,7 @@ public interface UserService extends SuperCacheService<User> {
      * @param ids
      * @return
      */
-    boolean reset(List<Long> ids);
+    boolean reset(UserUpdatePasswordDTO model);
 
     /**
      * 修改
@@ -168,4 +168,14 @@ public interface UserService extends SuperCacheService<User> {
      * @return
      */
     boolean initUser(User user);
+
+    /**
+     * 联合查询
+     *
+     * @param ids
+     * @return
+     */
+    List<User> findUser(Set<Serializable> ids);
+
+    List<User> findUserById(List<Long> ids);
 }

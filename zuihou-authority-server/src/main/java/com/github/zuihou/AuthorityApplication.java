@@ -4,8 +4,9 @@ import com.github.zuihou.security.annotation.EnableLoginArgResolver;
 import com.github.zuihou.validator.annotation.EnableFormValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
@@ -23,12 +24,15 @@ import java.net.UnknownHostException;
  * @createTime 2018-01-13 1:34
  */
 @SpringBootApplication
+@EnableAutoConfiguration(exclude = {
+        DataSourceAutoConfiguration.class
+})
 @Configuration
 @Slf4j
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 @EnableFormValidator
 @EnableLoginArgResolver
-@EnableFeignClients("com.github.zuihou")
+//@EnableFeignClients("com.github.zuihou")
 public class AuthorityApplication {
     public static void main(String[] args) throws UnknownHostException {
         ConfigurableApplicationContext application = SpringApplication.run(AuthorityApplication.class, args);
